@@ -62,9 +62,31 @@ def join_room(request):
                 return redirect('home')
     return redirect('home')
 
+from livekit import api
+import os
+
 @login_required
 def room_detail(request, room_id):
     room = get_object_or_404(Room, id=room_id, is_active=True)
-    # Ensure user is participant
     Participant.objects.get_or_create(room=room, user=request.user)
-    return render(request, 'chat/room.html', {'room': room})
+
+    # Generate LiveKit Token
+    # Make sure to set these env vars in production!
+    livekit_api_key = os.getenv('LIVEKIT_API_KEY', 'devkey')
+    livekit_api_secret = os.getenv('LIVEKIT_API_SECRET', 'secret')
+    
+    token = api.AccessToken(livekit_api_key, livekit_api_secret)
+    token.with_identity(request.user.username)
+    token.with_name(request.user.username)
+    token.with_grants(api.VideoGrants(
+        room_join=True,
+        room=str(room.id)
+    ))
+    
+    jwt_token = token.to_jwt()
+
+    return render(request, 'chat/room.html', {
+        'room': room,
+        'livekit_token': jwt_token,
+        'livekit_url': os.getenv('LIVEKIT_URL', 'ws://127.0.0.1:7880')
+    })

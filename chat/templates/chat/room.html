@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Room {{ room.id }} - WaveMeet</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include LiveKit JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
     <style>
         body {
             background-color: #ffe6f2; 
@@ -83,6 +85,7 @@
             padding: 4px 12px;
             border-radius: 12px;
             font-size: 14px;
+            z-index: 10;
         }
         
         /* Control Bar */
@@ -175,21 +178,17 @@
 
     {{ room.id|json_script:"room-id" }}
     {{ user.username|json_script:"user-name" }}
+    {{ livekit_token|json_script:"livekit-token" }}
+    {{ livekit_url|json_script:"livekit-url" }}
 
     <script>
         const roomId = JSON.parse(document.getElementById('room-id').textContent);
         const currentUsername = JSON.parse(document.getElementById('user-name').textContent);
+        const livekitToken = JSON.parse(document.getElementById('livekit-token').textContent);
+        const livekitUrl = JSON.parse(document.getElementById('livekit-url').textContent);
         
-        let localStream;
-        let screenStream;
+        let room; // LiveKit Room instance
         let isScreenSharing = false;
-        let peers = {}; // username -> RTCPeerConnection
-
-        const configuration = {
-            'iceServers': [
-                {'urls': 'stun:stun.l.google.com:19302'}
-            ]
-        };
 
         // UI Elements
         const videoGrid = document.getElementById('video-grid');
@@ -207,90 +206,68 @@
             else if (numVideos >= 7) videoGrid.classList.add('grid-9');
         }
 
-        // Initialize WebRTC and Signaling
         async function start() {
+            // Initialize LiveKit Room
+            room = new LivekitClient.Room({
+                adaptiveStream: true,
+                dynacast: true,
+            });
+
+            // Set up event listeners for LiveKit
+            room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                if (track.kind === LivekitClient.Track.Kind.Video) {
+                    attachVideoTrack(track, participant);
+                } else if (track.kind === LivekitClient.Track.Kind.Audio) {
+                    const audioElement = track.attach();
+                    document.body.appendChild(audioElement);
+                }
+            });
+
+            room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+                if (track.kind === LivekitClient.Track.Kind.Video) {
+                    removeVideoTrack(participant);
+                } else if (track.kind === LivekitClient.Track.Kind.Audio) {
+                    track.detach();
+                }
+            });
+
+            room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => {
+                removeVideoTrack(participant);
+            });
+
+            room.on(LivekitClient.RoomEvent.DataReceived, (payload, participant) => {
+                const strData = new TextDecoder().decode(payload);
+                const data = JSON.parse(strData);
+                if (data.action === 'chat_message') {
+                    appendChatMessage(participant.identity, data.message, false);
+                }
+            });
+
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                localVideo.srcObject = localStream;
-            } catch (e) {
-                console.error("Error accessing media devices.", e);
-                // Continue without media if failed (e.g. no webcam)
-                localStream = new MediaStream(); 
+                await room.connect(livekitUrl, livekitToken);
+                console.log('Connected to LiveKit Room:', room.name);
+
+                // Publish local camera and mic
+                await room.localParticipant.setCameraEnabled(true);
+                await room.localParticipant.setMicrophoneEnabled(true);
+
+                // Attach local video manually to our predefined element
+                const localVideoTrack = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Camera);
+                if (localVideoTrack && localVideoTrack.track) {
+                    localVideoTrack.track.attach(localVideo);
+                }
+
+                // Handle local track modifications
+                room.localParticipant.on('localTrackPublished', (publication) => {
+                    if (publication.source === LivekitClient.Track.Source.Camera) {
+                        publication.track.attach(localVideo);
+                    }
+                });
+
+            } catch (error) {
+                console.error("Could not connect to LiveKit", error);
+                alert("Lỗi kết nối tới Server. Bạn đã chạy LiveKit Server qua Docker chưa?");
             }
-
-            // WebSocket Connection
-            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            const chatSocket = new WebSocket(protocol + window.location.host + '/ws/chat/' + roomId + '/');
-
-            chatSocket.onopen = () => {
-                console.log("WebSocket connected");
-                // Announce arrival to room
-                chatSocket.send(JSON.stringify({
-                    'action': 'peer_joined'
-                }));
-            };
-
-            chatSocket.onmessage = async (e) => {
-                const messageData = JSON.parse(e.data);
-                const action = messageData.action;
-                const sender = messageData.sender;
-                const data = messageData.data;
-
-                // Ignore our own messages
-                if (sender === currentUsername) return;
-
-                if (action === 'chat_message') {
-                    appendChatMessage(sender, data.message);
-                } 
-                else if (action === 'peer_joined') {
-                    // Create peer connection and send offer
-                    console.log("Peer joined: ", sender);
-                    const pc = createPeerConnection(sender, chatSocket);
-                    peers[sender] = pc;
-
-                    const offer = await pc.createOffer();
-                    await pc.setLocalDescription(offer);
-
-                    chatSocket.send(JSON.stringify({
-                        'action': 'offer',
-                        'target': sender,
-                        'sdp': pc.localDescription
-                    }));
-                }
-                else if (action === 'offer') {
-                    if (data.target !== currentUsername) return; // Not for me
-                    console.log("Received offer from ", sender);
-                    
-                    const pc = createPeerConnection(sender, chatSocket);
-                    peers[sender] = pc;
-
-                    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-
-                    chatSocket.send(JSON.stringify({
-                        'action': 'answer',
-                        'target': sender,
-                        'sdp': pc.localDescription
-                    }));
-                }
-                else if (action === 'answer') {
-                    if (data.target !== currentUsername) return;
-                    console.log("Received answer from ", sender);
-                    const pc = peers[sender];
-                    if (pc) {
-                        await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                    }
-                }
-                else if (action === 'ice_candidate') {
-                    if (data.target !== currentUsername) return;
-                    console.log("Received ICE candidate from ", sender);
-                    const pc = peers[sender];
-                    if (pc) {
-                        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                    }
-                }
-            };
 
             // Chat Form Submit
             document.getElementById('chat-form').onsubmit = function(e) {
@@ -298,74 +275,51 @@
                 const msgInput = document.getElementById('chat-message-input');
                 const msg = msgInput.value.trim();
                 if (msg !== "") {
-                    chatSocket.send(JSON.stringify({
+                    const payload = new TextEncoder().encode(JSON.stringify({
                         'action': 'chat_message',
                         'message': msg
                     }));
+                    room.localParticipant.publishData(payload, LivekitClient.DataPacket_Kind.RELIABLE);
                     appendChatMessage("Bạn", msg, true);
                     msgInput.value = '';
                 }
             };
         }
 
-        function createPeerConnection(remoteUsername, socket) {
-            const pc = new RTCPeerConnection(configuration);
+        function attachVideoTrack(track, participant) {
+            let containerId = 'video-container-' + participant.sid;
+            let container = document.getElementById(containerId);
+            
+            if (!container) {
+                container = document.createElement('div');
+                container.id = containerId;
+                container.className = 'video-container';
+                
+                const vid = document.createElement('video');
+                vid.id = 'video-' + participant.sid;
+                vid.autoplay = true;
+                vid.playsInline = true;
+                
+                const label = document.createElement('div');
+                label.className = 'video-label';
+                label.innerText = participant.identity;
+                
+                container.appendChild(vid);
+                container.appendChild(label);
+                videoGrid.appendChild(container);
+                updateGridTemplate();
+            }
+            
+            // LiveKit automatically handles attaching to the video element
+            track.attach(document.getElementById('video-' + participant.sid));
+        }
 
-            // Add local tracks to peer connection
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-            // On ICE Candidate
-            pc.onicecandidate = (event) => {
-                if (event.candidate) {
-                    socket.send(JSON.stringify({
-                        'action': 'ice_candidate',
-                        'target': remoteUsername,
-                        'candidate': event.candidate
-                    }));
-                }
-            };
-
-            // On Track received
-            pc.ontrack = (event) => {
-                console.log("Received remote track from ", remoteUsername);
-                let container = document.getElementById('video-container-' + remoteUsername);
-                if (!container) {
-                    container = document.createElement('div');
-                    container.id = 'video-container-' + remoteUsername;
-                    container.className = 'video-container';
-                    
-                    const vid = document.createElement('video');
-                    vid.id = 'video-' + remoteUsername;
-                    vid.autoplay = true;
-                    vid.playsInline = true;
-                    vid.srcObject = event.streams[0];
-                    
-                    const label = document.createElement('div');
-                    label.className = 'video-label';
-                    label.innerText = remoteUsername;
-                    
-                    container.appendChild(vid);
-                    container.appendChild(label);
-                    videoGrid.appendChild(container);
-                    updateGridTemplate();
-                } else {
-                    document.getElementById('video-' + remoteUsername).srcObject = event.streams[0];
-                }
-            };
-
-            pc.onconnectionstatechange = () => {
-                if(pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                    console.log("Peer disconnected: ", remoteUsername);
-                    const container = document.getElementById('video-container-' + remoteUsername);
-                    if(container) {
-                        container.remove();
-                        updateGridTemplate();
-                    }
-                    delete peers[remoteUsername];
-                }
-            };
-
-            return pc;
+        function removeVideoTrack(participant) {
+            const container = document.getElementById('video-container-' + participant.sid);
+            if(container) {
+                container.remove();
+                updateGridTemplate();
+            }
         }
 
         function appendChatMessage(user, message, isMe=false) {
@@ -393,33 +347,30 @@
         }
 
         // Toggle Mic
-        btnMic.onclick = () => {
-            const audioTrack = localStream.getAudioTracks()[0];
-            if (audioTrack) {
-                audioTrack.enabled = !audioTrack.enabled;
-                if (audioTrack.enabled) {
-                    btnMic.classList.replace('btn-inactive', 'btn-active');
-                    btnMic.innerText = '🎤';
-                } else {
-                    btnMic.classList.replace('btn-active', 'btn-inactive');
-                    btnMic.innerText = '🔇';
-                }
+        btnMic.onclick = async () => {
+            const isEnabled = room.localParticipant.isMicrophoneEnabled;
+            await room.localParticipant.setMicrophoneEnabled(!isEnabled);
+            if (!isEnabled) { // It was disabled, now enabled
+                btnMic.classList.replace('btn-inactive', 'btn-active');
+                btnMic.innerText = '🎤';
+            } else {
+                btnMic.classList.replace('btn-active', 'btn-inactive');
+                btnMic.innerText = '🔇';
             }
         };
 
         // Toggle Camera
-        btnCam.onclick = () => {
-            if (isScreenSharing) return; // Cannot toggle cam while screen sharing
-            const videoTrack = localStream.getVideoTracks()[0];
-            if (videoTrack) {
-                videoTrack.enabled = !videoTrack.enabled;
-                if (videoTrack.enabled) {
-                    btnCam.classList.replace('btn-inactive', 'btn-active');
-                    btnCam.innerText = '📷';
-                } else {
-                    btnCam.classList.replace('btn-active', 'btn-inactive');
-                    btnCam.innerText = '🚫';
-                }
+        btnCam.onclick = async () => {
+            if (isScreenSharing) return;
+            const isEnabled = room.localParticipant.isCameraEnabled;
+            await room.localParticipant.setCameraEnabled(!isEnabled);
+            
+            if (!isEnabled) {
+                btnCam.classList.replace('btn-inactive', 'btn-active');
+                btnCam.innerText = '📷';
+            } else {
+                btnCam.classList.replace('btn-active', 'btn-inactive');
+                btnCam.innerText = '🚫';
             }
         };
 
@@ -427,54 +378,38 @@
         btnScreen.onclick = async () => {
             if (!isScreenSharing) {
                 try {
-                    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                    const screenTrack = screenStream.getVideoTracks()[0];
-                    
-                    // Replace track in all peer connections
-                    for (let peerUsername in peers) {
-                        const pc = peers[peerUsername];
-                        const sender = pc.getSenders().find(s => s.track.kind === 'video');
-                        if (sender) {
-                            sender.replaceTrack(screenTrack);
-                        }
-                    }
-
-                    // Update local video
-                    localVideo.srcObject = screenStream;
+                    await room.localParticipant.setScreenShareEnabled(true);
                     isScreenSharing = true;
                     btnScreen.classList.replace('btn-inactive', 'btn-active');
-                    
-                    // When user stops sharing via browser UI
-                    screenTrack.onended = () => {
-                        stopScreenSharing();
-                    };
+
+                    // If we want local preview of screen share, we can attach it to localVideo
+                    const screenTrack = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.ScreenShare);
+                    if (screenTrack && screenTrack.track) {
+                        screenTrack.track.attach(localVideo);
+                        
+                        // Handle native stop sharing
+                        screenTrack.track.mediaStreamTrack.onended = () => {
+                            stopScreenSharing();
+                        };
+                    }
                 } catch (e) {
                     console.error("Error sharing screen", e);
                 }
             } else {
-                stopScreenSharing();
+                await stopScreenSharing();
             }
         };
 
-        function stopScreenSharing() {
-            if (screenStream) {
-                screenStream.getTracks().forEach(t => t.stop());
-            }
-            const cameraTrack = localStream.getVideoTracks()[0];
-            
-            // Revert to camera track for all peers
-            for (let peerUsername in peers) {
-                const pc = peers[peerUsername];
-                const sender = pc.getSenders().find(s => s.track.kind === 'video');
-                if (sender) {
-                    sender.replaceTrack(cameraTrack);
-                }
-            }
-            
-            // Revert local video
-            localVideo.srcObject = localStream;
+        async function stopScreenSharing() {
+            await room.localParticipant.setScreenShareEnabled(false);
             isScreenSharing = false;
             btnScreen.classList.replace('btn-active', 'btn-inactive');
+            
+            // Revert local video to camera
+            const cameraTrack = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Camera);
+            if (cameraTrack && cameraTrack.track) {
+                cameraTrack.track.attach(localVideo);
+            }
         }
 
         // Start
