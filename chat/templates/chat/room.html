@@ -143,6 +143,9 @@
                 <button id="btn-toggle-cam" class="control-btn btn-active" title="Toggle Camera">
                     📷
                 </button>
+                <button id="btn-share-screen" class="control-btn btn-inactive" title="Share Screen">
+                    💻
+                </button>
                 <a href="{% url 'home' %}" class="control-btn btn-end" title="Leave Room" style="text-decoration:none;">
                     👋
                 </a>
@@ -178,6 +181,8 @@
         const currentUsername = JSON.parse(document.getElementById('user-name').textContent);
         
         let localStream;
+        let screenStream;
+        let isScreenSharing = false;
         let peers = {}; // username -> RTCPeerConnection
 
         const configuration = {
@@ -191,6 +196,7 @@
         const localVideo = document.getElementById('local-video');
         const btnMic = document.getElementById('btn-toggle-mic');
         const btnCam = document.getElementById('btn-toggle-cam');
+        const btnScreen = document.getElementById('btn-share-screen');
 
         function updateGridTemplate() {
             const numVideos = videoGrid.children.length;
@@ -403,6 +409,7 @@
 
         // Toggle Camera
         btnCam.onclick = () => {
+            if (isScreenSharing) return; // Cannot toggle cam while screen sharing
             const videoTrack = localStream.getVideoTracks()[0];
             if (videoTrack) {
                 videoTrack.enabled = !videoTrack.enabled;
@@ -415,6 +422,60 @@
                 }
             }
         };
+
+        // Share Screen
+        btnScreen.onclick = async () => {
+            if (!isScreenSharing) {
+                try {
+                    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                    const screenTrack = screenStream.getVideoTracks()[0];
+                    
+                    // Replace track in all peer connections
+                    for (let peerUsername in peers) {
+                        const pc = peers[peerUsername];
+                        const sender = pc.getSenders().find(s => s.track.kind === 'video');
+                        if (sender) {
+                            sender.replaceTrack(screenTrack);
+                        }
+                    }
+
+                    // Update local video
+                    localVideo.srcObject = screenStream;
+                    isScreenSharing = true;
+                    btnScreen.classList.replace('btn-inactive', 'btn-active');
+                    
+                    // When user stops sharing via browser UI
+                    screenTrack.onended = () => {
+                        stopScreenSharing();
+                    };
+                } catch (e) {
+                    console.error("Error sharing screen", e);
+                }
+            } else {
+                stopScreenSharing();
+            }
+        };
+
+        function stopScreenSharing() {
+            if (screenStream) {
+                screenStream.getTracks().forEach(t => t.stop());
+            }
+            const cameraTrack = localStream.getVideoTracks()[0];
+            
+            // Revert to camera track for all peers
+            for (let peerUsername in peers) {
+                const pc = peers[peerUsername];
+                const sender = pc.getSenders().find(s => s.track.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(cameraTrack);
+                }
+            }
+            
+            // Revert local video
+            localVideo.srcObject = localStream;
+            isScreenSharing = false;
+            btnScreen.classList.replace('btn-active', 'btn-inactive');
+        }
 
         // Start
         window.onload = start;
