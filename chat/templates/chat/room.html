@@ -194,7 +194,6 @@
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
     <!-- MediaPipe for Virtual Background -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen flex">
@@ -305,7 +304,6 @@
         const canvasElement = document.getElementById('bg-canvas');
         const canvasCtx = canvasElement.getContext('2d');
         const rawVideoElement = document.getElementById('raw-local-video');
-        let cameraAI;
 
         const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
@@ -349,7 +347,7 @@
         // Initialize WebRTC and Signaling
         async function start() {
             try {
-                let rawLocalStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
+                let rawLocalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 rawVideoElement.srcObject = rawLocalStream;
                 
                 // Get AI processed stream
@@ -362,17 +360,22 @@
                 
                 localVideo.srcObject = localStream;
 
-                cameraAI = new Camera(rawVideoElement, {
-                    onFrame: async () => {
+                async function processFrame() {
+                    if (rawVideoElement.readyState >= 2) { // HAVE_CURRENT_DATA
+                        // Update canvas dimensions to match video to avoid distortion
+                        if (canvasElement.width !== rawVideoElement.videoWidth) {
+                            canvasElement.width = rawVideoElement.videoWidth;
+                            canvasElement.height = rawVideoElement.videoHeight;
+                        }
                         await selfieSegmentation.send({image: rawVideoElement});
-                    },
-                    width: 640,
-                    height: 480
-                });
-                cameraAI.start();
+                    }
+                    requestAnimationFrame(processFrame);
+                }
+                processFrame();
 
             } catch (e) {
                 console.error("Error accessing media devices.", e);
+                alert("Không thể truy cập Camera/Micro. Các nút điều khiển sẽ bị vô hiệu hóa.");
                 localStream = new MediaStream(); 
             }
 
@@ -524,7 +527,10 @@
                         }
                     };
                 }
+            } // End of isHost block
+
             // Raise Hand
+            const btnRaiseHand = document.getElementById('btn-raise-hand');
             if (btnRaiseHand) {
                 btnRaiseHand.onclick = () => {
                     chatSocket.send(JSON.stringify({
@@ -533,7 +539,7 @@
                     showHand(currentUsername);
                 };
             }
-        }
+        } // End of start() function
 
         // Helper to get CSRF token
         function getCookie(name) {
