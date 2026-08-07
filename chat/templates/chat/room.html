@@ -175,10 +175,16 @@
 
     {{ room.id|json_script:"room-id" }}
     {{ user.username|json_script:"user-name" }}
+    {{ turn_url|json_script:"turn-url" }}
+    {{ turn_username|json_script:"turn-username" }}
+    {{ turn_password|json_script:"turn-password" }}
 
     <script>
         const roomId = JSON.parse(document.getElementById('room-id').textContent);
         const currentUsername = JSON.parse(document.getElementById('user-name').textContent);
+        const turnUrl = JSON.parse(document.getElementById('turn-url').textContent);
+        const turnUser = JSON.parse(document.getElementById('turn-username').textContent);
+        const turnPass = JSON.parse(document.getElementById('turn-password').textContent);
         
         let localStream;
         let screenStream;
@@ -187,7 +193,12 @@
 
         const configuration = {
             'iceServers': [
-                {'urls': 'stun:stun.l.google.com:19302'}
+                {'urls': 'stun:stun.l.google.com:19302'},
+                {
+                    'urls': turnUrl,
+                    'username': turnUser,
+                    'credential': turnPass
+                }
             ]
         };
 
@@ -249,6 +260,7 @@
                     peers[sender] = pc;
 
                     const offer = await pc.createOffer();
+                    offer.sdp = setMediaBitrate(offer.sdp, 500); // 500 kbps limit
                     await pc.setLocalDescription(offer);
 
                     chatSocket.send(JSON.stringify({
@@ -266,6 +278,7 @@
 
                     await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
                     const answer = await pc.createAnswer();
+                    answer.sdp = setMediaBitrate(answer.sdp, 500); // 500 kbps limit
                     await pc.setLocalDescription(answer);
 
                     chatSocket.send(JSON.stringify({
@@ -366,6 +379,21 @@
             };
 
             return pc;
+        }
+
+        // Tối ưu hóa băng thông bằng cách can thiệp vào SDP
+        function setMediaBitrate(sdp, bitrate) {
+            let lines = sdp.split('\\n');
+            let line = -1;
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].indexOf("m=video") === 0) {
+                    line = i;
+                    break;
+                }
+            }
+            if (line === -1) return sdp;
+            lines.splice(line + 1, 0, "b=AS:" + bitrate);
+            return lines.join("\\n");
         }
 
         function appendChatMessage(user, message, isMe=false) {

@@ -62,9 +62,39 @@ def join_room(request):
                 return redirect('home')
     return redirect('home')
 
+import time
+import hmac
+import hashlib
+import base64
+import os
+
 @login_required
 def room_detail(request, room_id):
     room = get_object_or_404(Room, id=room_id, is_active=True)
     # Ensure user is participant
     Participant.objects.get_or_create(room=room, user=request.user)
-    return render(request, 'chat/room.html', {'room': room})
+
+    # 1. Generate TURN Server Credentials (HMAC Auth)
+    turn_secret = os.getenv('TURN_SECRET', 'wavemeet-secret-key-for-coturn')
+    turn_url = os.getenv('TURN_URL', 'turn:turn.example.com:3478')
+    
+    # Expiration time for this temporary credential (e.g., 24 hours)
+    ttl = 86400
+    timestamp = int(time.time()) + ttl
+    turn_username = f"{timestamp}:{request.user.username}"
+    
+    mac = hmac.new(
+        turn_secret.encode('utf-8'),
+        turn_username.encode('utf-8'),
+        hashlib.sha1
+    )
+    turn_password = base64.b64encode(mac.digest()).decode('utf-8')
+
+    context = {
+        'room': room,
+        'turn_url': turn_url,
+        'turn_username': turn_username,
+        'turn_password': turn_password
+    }
+    
+    return render(request, 'chat/room.html', context)
