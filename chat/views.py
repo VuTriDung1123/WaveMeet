@@ -1,8 +1,9 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.decorators import login_required
 from .forms import CustomUserCreationForm
+from .models import Room, Participant
 
 def register_view(request):
     if request.user.is_authenticated:
@@ -38,3 +39,32 @@ def logout_view(request):
 @login_required
 def home(request):
     return render(request, 'chat/home.html')
+
+@login_required
+def create_room(request):
+    if request.method == 'POST':
+        room = Room.objects.create(host=request.user)
+        Participant.objects.create(room=room, user=request.user)
+        return redirect('room_detail', room_id=room.id)
+    return redirect('home')
+
+@login_required
+def join_room(request):
+    if request.method == 'POST':
+        room_id = request.POST.get('room_id')
+        if room_id:
+            try:
+                room = Room.objects.get(id=room_id, is_active=True)
+                Participant.objects.get_or_create(room=room, user=request.user)
+                return redirect('room_detail', room_id=room.id)
+            except Room.DoesNotExist:
+                # Handle room not found gracefully later
+                return redirect('home')
+    return redirect('home')
+
+@login_required
+def room_detail(request, room_id):
+    room = get_object_or_404(Room, id=room_id, is_active=True)
+    # Ensure user is participant
+    Participant.objects.get_or_create(room=room, user=request.user)
+    return render(request, 'chat/room.html', {'room': room})

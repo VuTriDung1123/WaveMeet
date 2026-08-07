@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Room {{ room.id }} - WaveMeet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #ffe6f2; /* Light pastel pink */
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden; /* App like feel */
+        }
+        .kawaii-shadow {
+            box-shadow: 0 10px 25px rgba(255, 182, 193, 0.5);
+        }
+        .kawaii-input {
+            border: 2px solid #ffb6c1;
+            border-radius: 9999px; 
+        }
+        .kawaii-input:focus {
+            outline: none;
+            border-color: #ff69b4;
+            box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.3);
+        }
+        .chat-bubble-me {
+            background-color: #ffb6c1;
+            color: white;
+            border-radius: 18px 18px 4px 18px;
+        }
+        .chat-bubble-other {
+            background-color: white;
+            color: #4a5568;
+            border: 1px solid #fed7e2;
+            border-radius: 18px 18px 18px 4px;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="h-screen flex">
+    <!-- Main Video Area (Phase 3) -->
+    <div class="flex-1 flex flex-col p-4">
+        <div class="flex justify-between items-center bg-white p-4 rounded-2xl kawaii-shadow mb-4">
+            <h1 class="text-xl font-bold text-gray-800">Room: <span class="text-pink-500 text-sm font-normal break-all">{{ room.id }}</span></h1>
+            <a href="{% url 'home' %}" class="text-pink-500 font-bold hover:underline">Rời phòng</a>
+        </div>
+        <div class="flex-1 bg-gray-900 rounded-3xl kawaii-shadow flex items-center justify-center relative">
+            <p class="text-gray-400">Khu vực hiển thị Video (Phase 3)</p>
+        </div>
+    </div>
+
+    <!-- Chat Sidebar -->
+    <div class="w-80 bg-white border-l-2 border-pink-100 flex flex-col h-full kawaii-shadow z-10 relative">
+        <div class="p-4 border-b border-pink-100 bg-pink-50">
+            <h2 class="font-bold text-gray-800 text-lg">Live Chat 🌸</h2>
+        </div>
+        
+        <div id="chat-log" class="flex-1 p-4 overflow-y-auto space-y-4">
+            <!-- Messages will be injected here via JS -->
+            <div class="text-center text-xs text-gray-400 my-2">-- Welcome to the chat --</div>
+        </div>
+        
+        <div class="p-4 border-t border-pink-100">
+            <form id="chat-form" class="flex items-center space-x-2">
+                <input id="chat-message-input" type="text" class="flex-1 px-4 py-2 kawaii-input text-sm" placeholder="Nhập tin nhắn..." autocomplete="off">
+                <button type="submit" class="p-2 rounded-full bg-pink-400 text-white hover:bg-pink-500 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {{ room.id|json_script:"room-id" }}
+    {{ user.username|json_script:"user-name" }}
+
+    <script>
+        const roomId = JSON.parse(document.getElementById('room-id').textContent);
+        const currentUsername = JSON.parse(document.getElementById('user-name').textContent);
+
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const chatSocket = new WebSocket(
+            protocol + window.location.host + '/ws/chat/' + roomId + '/'
+        );
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            const chatLog = document.getElementById('chat-log');
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'flex flex-col';
+            
+            const isMe = (data.user === currentUsername);
+            
+            if (isMe) {
+                messageDiv.className += ' items-end';
+                messageDiv.innerHTML = `
+                    <span class="text-xs text-gray-400 mb-1 mr-1">Bạn</span>
+                    <div class="px-4 py-2 text-sm chat-bubble-me max-w-[85%] break-words">
+                        ${data.message}
+                    </div>
+                `;
+            } else {
+                messageDiv.className += ' items-start';
+                messageDiv.innerHTML = `
+                    <span class="text-xs text-gray-400 mb-1 ml-1">${data.user}</span>
+                    <div class="px-4 py-2 text-sm chat-bubble-other max-w-[85%] break-words shadow-sm">
+                        ${data.message}
+                    </div>
+                `;
+            }
+
+            chatLog.appendChild(messageDiv);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        };
+
+        chatSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        document.getElementById('chat-form').onsubmit = function(e) {
+            e.preventDefault();
+            const messageInputDom = document.getElementById('chat-message-input');
+            const message = messageInputDom.value;
+            if (message.trim() !== "") {
+                chatSocket.send(JSON.stringify({
+                    'message': message
+                }));
+                messageInputDom.value = '';
+            }
+        };
+    </script>
+</body>
+</html>

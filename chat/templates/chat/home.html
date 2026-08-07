@@ -6,12 +6,20 @@
     <p class="text-gray-600 mb-8">Welcome to WaveMeet Dashboard</p>
     
     <div class="space-y-4">
-        <button class="w-full py-3 rounded-full font-bold kawaii-btn">
-            Tạo Phòng Mới
-        </button>
-        <button class="w-full py-3 rounded-full font-bold bg-white text-pink-500 border-2 border-pink-500 hover:bg-pink-50 transition-all shadow-sm hover:shadow-md">
-            Tham Gia Phòng
-        </button>
+        <form method="post" action="{% url 'create_room' %}">
+            {% csrf_token %}
+            <button type="submit" class="w-full py-3 rounded-full font-bold kawaii-btn">
+                Tạo Phòng Mới
+            </button>
+        </form>
+        
+        <form method="post" action="{% url 'join_room' %}" class="flex space-x-2">
+            {% csrf_token %}
+            <input type="text" name="room_id" placeholder="Nhập Room ID..." class="flex-1 px-4 py-2 kawaii-input text-sm" required>
+            <button type="submit" class="px-6 py-3 rounded-full font-bold bg-white text-pink-500 border-2 border-pink-500 hover:bg-pink-50 transition-all shadow-sm hover:shadow-md">
+                Tham Gia
+            </button>
+        </form>
     </div>
 
     <form method="post" action="{% url 'logout' %}" class="mt-8">
