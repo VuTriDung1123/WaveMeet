@@ -7,13 +7,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
-            background-color: #ffe6f2; /* Light pastel pink */
+            background-color: #ffe6f2; 
             font-family: 'Nunito', sans-serif;
-            overflow: hidden; /* App like feel */
+            overflow: hidden; 
         }
-        .kawaii-shadow {
-            box-shadow: 0 10px 25px rgba(255, 182, 193, 0.5);
-        }
+        .kawaii-shadow { box-shadow: 0 10px 25px rgba(255, 182, 193, 0.5); }
         .kawaii-input {
             border: 2px solid #ffb6c1;
             border-radius: 9999px; 
@@ -34,18 +32,121 @@
             border: 1px solid #fed7e2;
             border-radius: 18px 18px 18px 4px;
         }
+        /* Video Grid Styles */
+        #video-grid {
+            display: grid;
+            gap: 1rem;
+            width: 100%;
+            height: 100%;
+            padding: 1rem;
+            box-sizing: border-box;
+            /* Default 1x1 */
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
+        #video-grid.grid-2 {
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr;
+        }
+        #video-grid.grid-3, #video-grid.grid-4 {
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+        }
+        #video-grid.grid-5, #video-grid.grid-6 {
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+        }
+        #video-grid.grid-9 {
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: #1a202c;
+            border-radius: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .video-label {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+        }
+        
+        /* Control Bar */
+        .controls-bar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 20px;
+            border-radius: 9999px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            z-index: 20;
+        }
+        .control-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            color: white;
+        }
+        .btn-active { background-color: #ff69b4; }
+        .btn-inactive { background-color: #a0aec0; }
+        .btn-end { background-color: #f56565; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="h-screen flex">
-    <!-- Main Video Area (Phase 3) -->
-    <div class="flex-1 flex flex-col p-4">
-        <div class="flex justify-between items-center bg-white p-4 rounded-2xl kawaii-shadow mb-4">
+    
+    <!-- Main Video Area -->
+    <div class="flex-1 flex flex-col p-4 relative">
+        <div class="flex justify-between items-center bg-white p-4 rounded-2xl kawaii-shadow mb-4 z-10">
             <h1 class="text-xl font-bold text-gray-800">Room: <span class="text-pink-500 text-sm font-normal break-all">{{ room.id }}</span></h1>
-            <a href="{% url 'home' %}" class="text-pink-500 font-bold hover:underline">Rời phòng</a>
         </div>
-        <div class="flex-1 bg-gray-900 rounded-3xl kawaii-shadow flex items-center justify-center relative">
-            <p class="text-gray-400">Khu vực hiển thị Video (Phase 3)</p>
+        
+        <!-- Grid Container -->
+        <div class="flex-1 bg-pink-50 rounded-3xl kawaii-shadow relative overflow-hidden" id="grid-wrapper">
+            <div id="video-grid">
+                <!-- Local Video -->
+                <div class="video-container" id="video-container-local">
+                    <video id="local-video" autoplay playsinline muted></video>
+                    <div class="video-label">Bạn ({{ user.username }})</div>
+                </div>
+            </div>
+            
+            <!-- Controls -->
+            <div class="controls-bar">
+                <button id="btn-toggle-mic" class="control-btn btn-active" title="Toggle Mic">
+                    🎤
+                </button>
+                <button id="btn-toggle-cam" class="control-btn btn-active" title="Toggle Camera">
+                    📷
+                </button>
+                <a href="{% url 'home' %}" class="control-btn btn-end" title="Leave Room" style="text-decoration:none;">
+                    👋
+                </a>
+            </div>
         </div>
     </div>
 
@@ -56,7 +157,6 @@
         </div>
         
         <div id="chat-log" class="flex-1 p-4 overflow-y-auto space-y-4">
-            <!-- Messages will be injected here via JS -->
             <div class="text-center text-xs text-gray-400 my-2">-- Welcome to the chat --</div>
         </div>
         
@@ -64,9 +164,7 @@
             <form id="chat-form" class="flex items-center space-x-2">
                 <input id="chat-message-input" type="text" class="flex-1 px-4 py-2 kawaii-input text-sm" placeholder="Nhập tin nhắn..." autocomplete="off">
                 <button type="submit" class="p-2 rounded-full bg-pink-400 text-white hover:bg-pink-500 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                    </svg>
+                    ➤
                 </button>
             </form>
         </div>
@@ -78,58 +176,248 @@
     <script>
         const roomId = JSON.parse(document.getElementById('room-id').textContent);
         const currentUsername = JSON.parse(document.getElementById('user-name').textContent);
+        
+        let localStream;
+        let peers = {}; // username -> RTCPeerConnection
 
-        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        const chatSocket = new WebSocket(
-            protocol + window.location.host + '/ws/chat/' + roomId + '/'
-        );
+        const configuration = {
+            'iceServers': [
+                {'urls': 'stun:stun.l.google.com:19302'}
+            ]
+        };
 
-        chatSocket.onmessage = function(e) {
-            const data = JSON.parse(e.data);
+        // UI Elements
+        const videoGrid = document.getElementById('video-grid');
+        const localVideo = document.getElementById('local-video');
+        const btnMic = document.getElementById('btn-toggle-mic');
+        const btnCam = document.getElementById('btn-toggle-cam');
+
+        function updateGridTemplate() {
+            const numVideos = videoGrid.children.length;
+            videoGrid.className = ''; 
+            if (numVideos === 2) videoGrid.classList.add('grid-2');
+            else if (numVideos >= 3 && numVideos <= 4) videoGrid.classList.add('grid-4');
+            else if (numVideos >= 5 && numVideos <= 6) videoGrid.classList.add('grid-6');
+            else if (numVideos >= 7) videoGrid.classList.add('grid-9');
+        }
+
+        // Initialize WebRTC and Signaling
+        async function start() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localVideo.srcObject = localStream;
+            } catch (e) {
+                console.error("Error accessing media devices.", e);
+                // Continue without media if failed (e.g. no webcam)
+                localStream = new MediaStream(); 
+            }
+
+            // WebSocket Connection
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const chatSocket = new WebSocket(protocol + window.location.host + '/ws/chat/' + roomId + '/');
+
+            chatSocket.onopen = () => {
+                console.log("WebSocket connected");
+                // Announce arrival to room
+                chatSocket.send(JSON.stringify({
+                    'action': 'peer_joined'
+                }));
+            };
+
+            chatSocket.onmessage = async (e) => {
+                const messageData = JSON.parse(e.data);
+                const action = messageData.action;
+                const sender = messageData.sender;
+                const data = messageData.data;
+
+                // Ignore our own messages
+                if (sender === currentUsername) return;
+
+                if (action === 'chat_message') {
+                    appendChatMessage(sender, data.message);
+                } 
+                else if (action === 'peer_joined') {
+                    // Create peer connection and send offer
+                    console.log("Peer joined: ", sender);
+                    const pc = createPeerConnection(sender, chatSocket);
+                    peers[sender] = pc;
+
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+
+                    chatSocket.send(JSON.stringify({
+                        'action': 'offer',
+                        'target': sender,
+                        'sdp': pc.localDescription
+                    }));
+                }
+                else if (action === 'offer') {
+                    if (data.target !== currentUsername) return; // Not for me
+                    console.log("Received offer from ", sender);
+                    
+                    const pc = createPeerConnection(sender, chatSocket);
+                    peers[sender] = pc;
+
+                    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+
+                    chatSocket.send(JSON.stringify({
+                        'action': 'answer',
+                        'target': sender,
+                        'sdp': pc.localDescription
+                    }));
+                }
+                else if (action === 'answer') {
+                    if (data.target !== currentUsername) return;
+                    console.log("Received answer from ", sender);
+                    const pc = peers[sender];
+                    if (pc) {
+                        await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                    }
+                }
+                else if (action === 'ice_candidate') {
+                    if (data.target !== currentUsername) return;
+                    console.log("Received ICE candidate from ", sender);
+                    const pc = peers[sender];
+                    if (pc) {
+                        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    }
+                }
+            };
+
+            // Chat Form Submit
+            document.getElementById('chat-form').onsubmit = function(e) {
+                e.preventDefault();
+                const msgInput = document.getElementById('chat-message-input');
+                const msg = msgInput.value.trim();
+                if (msg !== "") {
+                    chatSocket.send(JSON.stringify({
+                        'action': 'chat_message',
+                        'message': msg
+                    }));
+                    appendChatMessage("Bạn", msg, true);
+                    msgInput.value = '';
+                }
+            };
+        }
+
+        function createPeerConnection(remoteUsername, socket) {
+            const pc = new RTCPeerConnection(configuration);
+
+            // Add local tracks to peer connection
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+            // On ICE Candidate
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.send(JSON.stringify({
+                        'action': 'ice_candidate',
+                        'target': remoteUsername,
+                        'candidate': event.candidate
+                    }));
+                }
+            };
+
+            // On Track received
+            pc.ontrack = (event) => {
+                console.log("Received remote track from ", remoteUsername);
+                let container = document.getElementById('video-container-' + remoteUsername);
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = 'video-container-' + remoteUsername;
+                    container.className = 'video-container';
+                    
+                    const vid = document.createElement('video');
+                    vid.id = 'video-' + remoteUsername;
+                    vid.autoplay = true;
+                    vid.playsInline = true;
+                    vid.srcObject = event.streams[0];
+                    
+                    const label = document.createElement('div');
+                    label.className = 'video-label';
+                    label.innerText = remoteUsername;
+                    
+                    container.appendChild(vid);
+                    container.appendChild(label);
+                    videoGrid.appendChild(container);
+                    updateGridTemplate();
+                } else {
+                    document.getElementById('video-' + remoteUsername).srcObject = event.streams[0];
+                }
+            };
+
+            pc.onconnectionstatechange = () => {
+                if(pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                    console.log("Peer disconnected: ", remoteUsername);
+                    const container = document.getElementById('video-container-' + remoteUsername);
+                    if(container) {
+                        container.remove();
+                        updateGridTemplate();
+                    }
+                    delete peers[remoteUsername];
+                }
+            };
+
+            return pc;
+        }
+
+        function appendChatMessage(user, message, isMe=false) {
             const chatLog = document.getElementById('chat-log');
-            
             const messageDiv = document.createElement('div');
-            messageDiv.className = 'flex flex-col';
-            
-            const isMe = (data.user === currentUsername);
+            messageDiv.className = 'flex flex-col ' + (isMe ? 'items-end' : 'items-start');
             
             if (isMe) {
-                messageDiv.className += ' items-end';
                 messageDiv.innerHTML = `
                     <span class="text-xs text-gray-400 mb-1 mr-1">Bạn</span>
                     <div class="px-4 py-2 text-sm chat-bubble-me max-w-[85%] break-words">
-                        ${data.message}
+                        ${message}
                     </div>
                 `;
             } else {
-                messageDiv.className += ' items-start';
                 messageDiv.innerHTML = `
-                    <span class="text-xs text-gray-400 mb-1 ml-1">${data.user}</span>
+                    <span class="text-xs text-gray-400 mb-1 ml-1">${user}</span>
                     <div class="px-4 py-2 text-sm chat-bubble-other max-w-[85%] break-words shadow-sm">
-                        ${data.message}
+                        ${message}
                     </div>
                 `;
             }
-
             chatLog.appendChild(messageDiv);
             chatLog.scrollTop = chatLog.scrollHeight;
-        };
+        }
 
-        chatSocket.onclose = function(e) {
-            console.error('Chat socket closed unexpectedly');
-        };
-
-        document.getElementById('chat-form').onsubmit = function(e) {
-            e.preventDefault();
-            const messageInputDom = document.getElementById('chat-message-input');
-            const message = messageInputDom.value;
-            if (message.trim() !== "") {
-                chatSocket.send(JSON.stringify({
-                    'message': message
-                }));
-                messageInputDom.value = '';
+        // Toggle Mic
+        btnMic.onclick = () => {
+            const audioTrack = localStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = !audioTrack.enabled;
+                if (audioTrack.enabled) {
+                    btnMic.classList.replace('btn-inactive', 'btn-active');
+                    btnMic.innerText = '🎤';
+                } else {
+                    btnMic.classList.replace('btn-active', 'btn-inactive');
+                    btnMic.innerText = '🔇';
+                }
             }
         };
+
+        // Toggle Camera
+        btnCam.onclick = () => {
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !videoTrack.enabled;
+                if (videoTrack.enabled) {
+                    btnCam.classList.replace('btn-inactive', 'btn-active');
+                    btnCam.innerText = '📷';
+                } else {
+                    btnCam.classList.replace('btn-active', 'btn-inactive');
+                    btnCam.innerText = '🚫';
+                }
+            }
+        };
+
+        // Start
+        window.onload = start;
     </script>
 </body>
 </html>

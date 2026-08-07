@@ -23,28 +23,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     # Receive message from WebSocket
     async def receive(self, text_data):
-        text_data_json = json.loads(text_data)
-        message = text_data_json.get('message')
+        data = json.loads(text_data)
+        action = data.get('action')
         user = self.scope['user'].username if self.scope['user'].is_authenticated else 'Anonymous'
 
-        if message:
+        if action:
             # Send message to room group
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
-                    'type': 'chat_message',
-                    'message': message,
-                    'user': user
+                    'type': 'signaling_message',
+                    'data': data,
+                    'sender': user
                 }
             )
 
     # Receive message from room group
-    async def chat_message(self, event):
-        message = event['message']
-        user = event['user']
-
-        # Send message to WebSocket
+    async def signaling_message(self, event):
+        data = event['data']
+        sender = event['sender']
+        action = data.get('action')
+        
+        # Don't send back to the original sender unless it's a chat message
+        # Actually for simplicity, we just send to everyone and client ignores its own messages
+        
         await self.send(text_data=json.dumps({
-            'message': message,
-            'user': user
+            'action': action,
+            'data': data,
+            'sender': sender
         }))
