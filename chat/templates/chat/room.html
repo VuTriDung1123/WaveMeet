@@ -114,41 +114,130 @@
         .btn-active { background-color: #ff69b4; }
         .btn-inactive { background-color: #a0aec0; }
         .btn-end { background-color: #f56565; }
+        .btn-recording { background-color: #e53e3e; animation: pulse 2s infinite; }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(229, 62, 62, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(229, 62, 62, 0); }
+        }
+        
+        /* Host Controls */
+        .host-panel {
+            background-color: #ffe4e6;
+            border: 1px solid #fecdd3;
+            border-radius: 1rem;
+            padding: 10px 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .host-btn {
+            padding: 6px 12px;
+            border-radius: 9999px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.2s;
+        }
+        .host-btn:hover { opacity: 0.8; }
+        .host-btn-mute { background-color: #fbbf24; color: white; }
+        .host-btn-lock { background-color: #93c5fd; color: white; }
+        .btn-kick {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(239, 68, 68, 0.8);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            z-index: 10;
+            display: none; /* hidden by default */
+        }
+        .btn-pip {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 4px 8px;
+            cursor: pointer;
+            z-index: 10;
+            font-size: 12px;
+        }
+        .hand-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 80px;
+            animation: bounce 1s ease infinite;
+            z-index: 15;
+            display: none;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translate(-50%, -50%); }
+            50% { transform: translate(-50%, -60%); }
+        }
+        .pinned {
+            position: absolute !important;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 50 !important;
+            border-radius: 0 !important;
+        }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- MediaPipe for Virtual Background -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
 </head>
 <body class="h-screen flex">
+    <!-- Hidden elements for AI processing -->
+    <video id="raw-local-video" style="display:none;" autoplay playsinline muted></video>
+    <canvas id="bg-canvas" style="display:none;" width="640" height="480"></canvas>
     
     <!-- Main Video Area -->
     <div class="flex-1 flex flex-col p-4 relative">
         <div class="flex justify-between items-center bg-white p-4 rounded-2xl kawaii-shadow mb-4 z-10">
             <h1 class="text-xl font-bold text-gray-800">Room: <span class="text-pink-500 text-sm font-normal break-all">{{ room.id }}</span></h1>
+            
+            {% if is_host %}
+            <div class="host-panel">
+                <span class="text-sm font-bold text-pink-500 mr-2">👑 Host</span>
+                <button id="btn-mute-all" class="host-btn host-btn-mute">🔇 Mute All</button>
+                <button id="btn-lock-room" class="host-btn host-btn-lock">
+                    {% if room.is_locked %}🔓 Unlock Room{% else %}🔒 Lock Room{% endif %}
+                </button>
+            </div>
+            {% endif %}
         </div>
         
         <!-- Grid Container -->
         <div class="flex-1 bg-pink-50 rounded-3xl kawaii-shadow relative overflow-hidden" id="grid-wrapper">
             <div id="video-grid">
                 <!-- Local Video -->
-                <div class="video-container" id="video-container-local">
+                <div class="video-container" id="video-container-local" ondblclick="togglePin(this)">
                     <video id="local-video" autoplay playsinline muted></video>
                     <div class="video-label">Bạn ({{ user.username }})</div>
+                    <div class="hand-icon" id="hand-local">✋</div>
                 </div>
             </div>
             
             <!-- Controls -->
             <div class="controls-bar">
-                <button id="btn-toggle-mic" class="control-btn btn-active" title="Toggle Mic">
-                    🎤
-                </button>
-                <button id="btn-toggle-cam" class="control-btn btn-active" title="Toggle Camera">
-                    📷
-                </button>
-                <button id="btn-share-screen" class="control-btn btn-inactive" title="Share Screen">
-                    💻
-                </button>
-                <a href="{% url 'home' %}" class="control-btn btn-end" title="Leave Room" style="text-decoration:none;">
-                    👋
-                </a>
+                <button id="btn-toggle-mic" class="control-btn btn-active" title="Toggle Mic">🎤</button>
+                <button id="btn-toggle-cam" class="control-btn btn-active" title="Toggle Camera">📷</button>
+                <button id="btn-blur" class="control-btn btn-inactive" title="Background Blur">🌫</button>
+                <button id="btn-share-screen" class="control-btn btn-inactive" title="Share Screen">💻</button>
+                <button id="btn-raise-hand" class="control-btn btn-inactive" title="Raise Hand">✋</button>
+                <button id="btn-record" class="control-btn btn-inactive" title="Record Session">🔴</button>
+                <a href="{% url 'home' %}" class="control-btn btn-end" title="Leave Room" style="text-decoration:none;">👋</a>
             </div>
         </div>
     </div>
@@ -178,6 +267,7 @@
     {{ turn_url|json_script:"turn-url" }}
     {{ turn_username|json_script:"turn-username" }}
     {{ turn_password|json_script:"turn-password" }}
+    {{ is_host|json_script:"is-host" }}
 
     <script>
         const roomId = JSON.parse(document.getElementById('room-id').textContent);
@@ -185,6 +275,7 @@
         const turnUrl = JSON.parse(document.getElementById('turn-url').textContent);
         const turnUser = JSON.parse(document.getElementById('turn-username').textContent);
         const turnPass = JSON.parse(document.getElementById('turn-password').textContent);
+        const isHost = JSON.parse(document.getElementById('is-host').textContent);
         
         let localStream;
         let screenStream;
@@ -207,7 +298,44 @@
         const localVideo = document.getElementById('local-video');
         const btnMic = document.getElementById('btn-toggle-mic');
         const btnCam = document.getElementById('btn-toggle-cam');
+        const btnBlur = document.getElementById('btn-blur');
         const btnScreen = document.getElementById('btn-share-screen');
+
+        let isBlurActive = false;
+        const canvasElement = document.getElementById('bg-canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const rawVideoElement = document.getElementById('raw-local-video');
+        let cameraAI;
+
+        const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
+        }});
+        selfieSegmentation.setOptions({ modelSelection: 1 });
+        selfieSegmentation.onResults(onResults);
+
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            if (isBlurActive) {
+                // Blur effect
+                canvasCtx.filter = 'blur(10px)';
+                canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+                
+                canvasCtx.filter = 'none';
+                canvasCtx.globalCompositeOperation = 'destination-in';
+                canvasCtx.drawImage(results.segmentationMask, 0, 0, canvasElement.width, canvasElement.height);
+                
+                canvasCtx.globalCompositeOperation = 'destination-over';
+                canvasCtx.filter = 'blur(10px)';
+                canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            } else {
+                canvasCtx.filter = 'none';
+                canvasCtx.globalCompositeOperation = 'source-over';
+                canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            }
+            canvasCtx.restore();
+        }
 
         function updateGridTemplate() {
             const numVideos = videoGrid.children.length;
@@ -221,11 +349,30 @@
         // Initialize WebRTC and Signaling
         async function start() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                let rawLocalStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
+                rawVideoElement.srcObject = rawLocalStream;
+                
+                // Get AI processed stream
+                localStream = canvasElement.captureStream(30);
+                // Add original audio back
+                const audioTrack = rawLocalStream.getAudioTracks()[0];
+                if(audioTrack) {
+                    localStream.addTrack(audioTrack);
+                }
+                
                 localVideo.srcObject = localStream;
+
+                cameraAI = new Camera(rawVideoElement, {
+                    onFrame: async () => {
+                        await selfieSegmentation.send({image: rawVideoElement});
+                    },
+                    width: 640,
+                    height: 480
+                });
+                cameraAI.start();
+
             } catch (e) {
                 console.error("Error accessing media devices.", e);
-                // Continue without media if failed (e.g. no webcam)
                 localStream = new MediaStream(); 
             }
 
@@ -253,6 +400,25 @@
                 if (action === 'chat_message') {
                     appendChatMessage(sender, data.message);
                 } 
+                else if (action === 'mute_all') {
+                    // Force mute locally
+                    const audioTrack = localStream.getAudioTracks()[0];
+                    if (audioTrack && audioTrack.enabled) {
+                        audioTrack.enabled = false;
+                        btnMic.classList.replace('btn-active', 'btn-inactive');
+                        btnMic.innerText = '🔇';
+                        appendChatMessage("System", "Host đã tắt mic của mọi người.", false);
+                    }
+                }
+                else if (action === 'kick') {
+                    if (data.target === currentUsername) {
+                        alert("Bạn đã bị Host mời ra khỏi phòng.");
+                        window.location.href = "/";
+                    }
+                }
+                else if (action === 'raise_hand') {
+                    showHand(sender);
+                }
                 else if (action === 'peer_joined') {
                     // Create peer connection and send offer
                     console.log("Peer joined: ", sender);
@@ -319,6 +485,70 @@
                     msgInput.value = '';
                 }
             };
+
+            // Host Actions
+            if (isHost) {
+                const btnMuteAll = document.getElementById('btn-mute-all');
+                const btnLockRoom = document.getElementById('btn-lock-room');
+                
+                if (btnMuteAll) {
+                    btnMuteAll.onclick = () => {
+                        if (confirm("Tắt mic tất cả mọi người?")) {
+                            chatSocket.send(JSON.stringify({
+                                'action': 'mute_all'
+                            }));
+                            appendChatMessage("System", "Đã gửi lệnh tắt mic mọi người.", true);
+                        }
+                    };
+                }
+
+                if (btnLockRoom) {
+                    btnLockRoom.onclick = async () => {
+                        try {
+                            const res = await fetch(`/chat/room/${roomId}/lock/`, {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRFToken': getCookie('csrftoken')
+                                }
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                                if (data.is_locked) {
+                                    btnLockRoom.innerText = '🔓 Unlock Room';
+                                } else {
+                                    btnLockRoom.innerText = '🔒 Lock Room';
+                                }
+                            }
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    };
+                }
+            // Raise Hand
+            if (btnRaiseHand) {
+                btnRaiseHand.onclick = () => {
+                    chatSocket.send(JSON.stringify({
+                        'action': 'raise_hand'
+                    }));
+                    showHand(currentUsername);
+                };
+            }
+        }
+
+        // Helper to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
         }
 
         function createPeerConnection(remoteUsername, socket) {
@@ -346,6 +576,7 @@
                     container = document.createElement('div');
                     container.id = 'video-container-' + remoteUsername;
                     container.className = 'video-container';
+                    container.ondblclick = function() { togglePin(this); };
                     
                     const vid = document.createElement('video');
                     vid.id = 'video-' + remoteUsername;
@@ -357,8 +588,44 @@
                     label.className = 'video-label';
                     label.innerText = remoteUsername;
                     
+                    const hand = document.createElement('div');
+                    hand.className = 'hand-icon';
+                    hand.id = 'hand-' + remoteUsername;
+                    hand.innerText = '✋';
+
+                    const pipBtn = document.createElement('button');
+                    pipBtn.className = 'btn-pip';
+                    pipBtn.innerText = '🗗 PiP';
+                    pipBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        if (document.pictureInPictureElement !== vid) {
+                            vid.requestPictureInPicture();
+                        } else {
+                            document.exitPictureInPicture();
+                        }
+                    };
+                    
                     container.appendChild(vid);
                     container.appendChild(label);
+                    container.appendChild(hand);
+                    container.appendChild(pipBtn);
+                    
+                    if (isHost) {
+                        const kickBtn = document.createElement('button');
+                        kickBtn.className = 'btn-kick';
+                        kickBtn.innerHTML = '✕';
+                        kickBtn.style.display = 'block';
+                        kickBtn.onclick = () => {
+                            if (confirm(`Đuổi ${remoteUsername} ra khỏi phòng?`)) {
+                                socket.send(JSON.stringify({
+                                    'action': 'kick',
+                                    'target': remoteUsername
+                                }));
+                            }
+                        };
+                        container.appendChild(kickBtn);
+                    }
+
                     videoGrid.appendChild(container);
                     updateGridTemplate();
                 } else {
@@ -451,6 +718,16 @@
             }
         };
 
+        // Toggle Blur
+        btnBlur.onclick = () => {
+            isBlurActive = !isBlurActive;
+            if(isBlurActive) {
+                btnBlur.classList.replace('btn-inactive', 'btn-active');
+            } else {
+                btnBlur.classList.replace('btn-active', 'btn-inactive');
+            }
+        };
+
         // Share Screen
         btnScreen.onclick = async () => {
             if (!isScreenSharing) {
@@ -504,6 +781,82 @@
             isScreenSharing = false;
             btnScreen.classList.replace('btn-active', 'btn-inactive');
         }
+
+        // Host Actions
+        // ... (Already handled inside start)
+
+        // --- Raise Hand ---
+        const btnRaiseHand = document.getElementById('btn-raise-hand');
+        let handAudio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+
+        function showHand(username) {
+            const handId = username === currentUsername ? 'hand-local' : 'hand-' + username;
+            const handEl = document.getElementById(handId);
+            if (handEl) {
+                handEl.style.display = 'block';
+                handAudio.play().catch(e => {}); // ignore error if blocked
+                setTimeout(() => {
+                    handEl.style.display = 'none';
+                }, 4000); // hide after 4 seconds
+            }
+        }
+
+        // --- Pin Video ---
+        function togglePin(element) {
+            if (element.classList.contains('pinned')) {
+                element.classList.remove('pinned');
+            } else {
+                // Remove from others
+                document.querySelectorAll('.video-container').forEach(el => el.classList.remove('pinned'));
+                element.classList.add('pinned');
+            }
+        }
+
+        // --- Record Session ---
+        const btnRecord = document.getElementById('btn-record');
+        let mediaRecorder;
+        let recordedChunks = [];
+        
+        btnRecord.onclick = async () => {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                btnRecord.classList.replace('btn-recording', 'btn-inactive');
+                return;
+            }
+
+            try {
+                // Request Tab Capture for recording
+                const captureStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                mediaRecorder = new MediaRecorder(captureStream);
+                
+                mediaRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) {
+                        recordedChunks.push(e.data);
+                    }
+                };
+
+                mediaRecorder.onstop = function() {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    recordedChunks = [];
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `WaveMeet_Record_${roomId}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    
+                    // Stop all tracks of captureStream
+                    captureStream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                btnRecord.classList.replace('btn-inactive', 'btn-recording');
+            } catch (err) {
+                console.error("Error starting recording:", err);
+            }
+        };
 
         // Start
         window.onload = start;

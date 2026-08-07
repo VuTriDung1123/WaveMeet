@@ -55,6 +55,10 @@ def join_room(request):
         if room_id:
             try:
                 room = Room.objects.get(id=room_id, is_active=True)
+                if room.is_locked and room.host != request.user:
+                    # Prevent non-hosts from joining locked rooms
+                    # For simplicity, redirect to home. In a real app, send a message.
+                    return redirect('home')
                 Participant.objects.get_or_create(room=room, user=request.user)
                 return redirect('room_detail', room_id=room.id)
             except Room.DoesNotExist:
@@ -94,7 +98,22 @@ def room_detail(request, room_id):
         'room': room,
         'turn_url': turn_url,
         'turn_username': turn_username,
-        'turn_password': turn_password
+        'turn_password': turn_password,
+        'is_host': request.user == room.host
     }
     
     return render(request, 'chat/room.html', context)
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+
+@login_required
+@require_POST
+def toggle_room_lock(request, room_id):
+    room = get_object_or_404(Room, id=room_id)
+    if room.host != request.user:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    room.is_locked = not room.is_locked
+    room.save()
+    return JsonResponse({'success': True, 'is_locked': room.is_locked})

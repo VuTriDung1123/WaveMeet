@@ -30,6 +30,7 @@ class Room(models.Model):
     host = models.ForeignKey(User, on_delete=models.CASCADE, related_name='hosted_rooms')
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
+    is_locked = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.name or str(self.id)} (Host: {self.host.username})"
