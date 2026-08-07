@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WaveMeet</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #ffe6f2; /* Light pastel pink */
+            font-family: 'Nunito', sans-serif;
+        }
+        .kawaii-shadow {
+            box-shadow: 0 10px 25px rgba(255, 182, 193, 0.5);
+        }
+        .kawaii-input {
+            border: 2px solid #ffb6c1;
+            border-radius: 9999px; /* Fully rounded */
+        }
+        .kawaii-input:focus {
+            outline: none;
+            border-color: #ff69b4;
+            box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.3);
+        }
+        .kawaii-btn {
+            background-color: #ffb6c1;
+            color: white;
+            transition: all 0.3s;
+        }
+        .kawaii-btn:hover {
+            background-color: #ff69b4;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 105, 180, 0.4);
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center">
+    
+    <div class="w-full max-w-md bg-white rounded-3xl p-8 kawaii-shadow">
+        {% block content %}
+        {% endblock %}
+    </div>
+
+</body>
+</html>
