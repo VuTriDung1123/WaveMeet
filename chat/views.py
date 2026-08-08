@@ -119,3 +119,13 @@ def toggle_room_lock(request, room_id):
     room.is_locked = not room.is_locked
     room.save()
     return JsonResponse({'success': True, 'is_locked': room.is_locked})
+
+@login_required
+def profile_view(request):
+    if request.method == 'POST':
+        avatar_url = request.POST.get('avatar_url')
+        if avatar_url is not None:
+            request.user.avatar_url = avatar_url
+            request.user.save(update_fields=['avatar_url'])
+            return redirect('profile')
+    return render(request, 'chat/profile.html')

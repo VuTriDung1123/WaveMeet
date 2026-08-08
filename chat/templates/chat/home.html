@@ -4,7 +4,17 @@
     
     <!-- Left Panel: Dashboard -->
     <div class="w-full md:w-1/2 p-8 glass-panel rounded-[2rem] flex flex-col">
-        <div class="text-center mb-8">
+        <div class="text-center mb-8 relative">
+            <a href="{% url 'profile' %}" class="absolute right-0 top-0 text-pink-500 hover:text-pink-600 transition-colors" title="Hồ sơ của bạn">
+                <i class="fa-solid fa-user-gear text-2xl"></i>
+            </a>
+            <div class="w-24 h-24 mx-auto mb-4 rounded-full bg-pink-200 border-4 border-white shadow-md overflow-hidden flex items-center justify-center text-pink-600 font-bold text-3xl">
+                {% if request.user.avatar_url %}
+                    <img src="{{ request.user.avatar_url }}" alt="Avatar" class="w-full h-full object-cover">
+                {% else %}
+                    {{ request.user.username|make_list|first|upper }}
+                {% endif %}
+            </div>
             <h2 class="text-4xl font-bold text-gray-800 mb-2">Hello, <span class="text-pink-500">{{ user.username }}</span>! 🌸</h2>
             <p class="text-gray-600 font-medium">Welcome to WaveMeet Dashboard</p>
         </div>
@@ -53,8 +63,12 @@
             <div class="flex items-center justify-between p-3 bg-white/50 rounded-2xl hover:bg-white/80 transition-colors">
                 <div class="flex items-center gap-3">
                     <div class="relative">
-                        <div class="w-12 h-12 rounded-full bg-pink-200 flex items-center justify-center text-pink-600 font-bold text-xl">
-                            {{ u.username|make_list|first|upper }}
+                        <div class="w-12 h-12 rounded-full bg-pink-200 flex items-center justify-center text-pink-600 font-bold text-xl overflow-hidden border-2 border-white">
+                            {% if u.avatar_url %}
+                                <img src="{{ u.avatar_url }}" alt="Avatar" class="w-full h-full object-cover">
+                            {% else %}
+                                {{ u.username|make_list|first|upper }}
+                            {% endif %}
                         </div>
                         <div id="status-dot-{{ u.id }}" class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white {% if u.is_online %}bg-green-500{% else %}bg-gray-400{% endif %} transition-colors duration-300"></div>
                     </div>
