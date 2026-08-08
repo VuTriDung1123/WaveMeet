@@ -4,6 +4,7 @@ import uuid
 
 class User(AbstractUser):
     avatar_url = models.URLField(max_length=500, blank=True, null=True)
+    is_online = models.BooleanField(default=False)
     
     def __str__(self):
         return self.username

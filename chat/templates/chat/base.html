@@ -6,42 +6,54 @@
     <title>WaveMeet</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Quicksand -->
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
-            background-color: #ffe6f2; /* Light pastel pink */
-            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%);
+            font-family: 'Quicksand', sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            background-attachment: fixed;
         }
-        .kawaii-shadow {
-            box-shadow: 0 10px 25px rgba(255, 182, 193, 0.5);
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 8px 32px 0 rgba(255, 182, 193, 0.37);
         }
         .kawaii-input {
-            border: 2px solid #ffb6c1;
-            border-radius: 9999px; /* Fully rounded */
+            background: rgba(255,255,255,0.8);
+            border: 2px solid transparent;
+            border-radius: 9999px;
+            transition: all 0.3s;
         }
         .kawaii-input:focus {
             outline: none;
             border-color: #ff69b4;
-            box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.3);
+            background: white;
+            box-shadow: 0 0 0 4px rgba(255, 105, 180, 0.2);
         }
         .kawaii-btn {
-            background-color: #ffb6c1;
-            color: white;
+            background: linear-gradient(45deg, #ff9a9e, #fecfef);
+            color: #d13a7a;
             transition: all 0.3s;
+            font-weight: 700;
         }
         .kawaii-btn:hover {
-            background-color: #ff69b4;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 105, 180, 0.4);
+            box-shadow: 0 6px 15px rgba(255, 105, 180, 0.4);
+            filter: brightness(1.05);
         }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="min-h-screen flex flex-col items-center justify-center">
+<body class="flex flex-col items-center justify-center">
     
-    <div class="w-full max-w-md bg-white rounded-3xl p-8 kawaii-shadow">
-        {% block content %}
-        {% endblock %}
-    </div>
+    {% block content %}
+    {% endblock %}
 
 </body>
 </html>

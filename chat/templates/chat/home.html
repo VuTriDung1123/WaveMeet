@@ -1,30 +1,158 @@
 {% extends "chat/base.html" %}
-
 {% block content %}
-<div class="text-center">
-    <h2 class="text-3xl font-bold text-gray-800 mb-2">Hello, {{ user.username }}! 🌸</h2>
-    <p class="text-gray-600 mb-8">Welcome to WaveMeet Dashboard</p>
+<div class="w-full max-w-6xl mx-auto p-4 md:p-8 flex flex-col md:flex-row gap-8 items-start mt-10">
     
-    <div class="space-y-4">
-        <form method="post" action="{% url 'create_room' %}">
-            {% csrf_token %}
-            <button type="submit" class="w-full py-3 rounded-full font-bold kawaii-btn">
-                Tạo Phòng Mới
-            </button>
-        </form>
+    <!-- Left Panel: Dashboard -->
+    <div class="w-full md:w-1/2 p-8 glass-panel rounded-[2rem] flex flex-col">
+        <div class="text-center mb-8">
+            <h2 class="text-4xl font-bold text-gray-800 mb-2">Hello, <span class="text-pink-500">{{ user.username }}</span>! 🌸</h2>
+            <p class="text-gray-600 font-medium">Welcome to WaveMeet Dashboard</p>
+        </div>
         
-        <form method="post" action="{% url 'join_room' %}" class="flex space-x-2">
+        <div class="space-y-6 flex-1">
+            <form method="post" action="{% url 'create_room' %}">
+                {% csrf_token %}
+                <button type="submit" class="w-full py-4 rounded-full font-bold kawaii-btn text-xl flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-video"></i> Tạo Phòng Mới
+                </button>
+            </form>
+            
+            <div class="relative flex py-5 items-center">
+                <div class="flex-grow border-t border-pink-200"></div>
+                <span class="flex-shrink-0 mx-4 text-pink-400 font-semibold text-sm">HOẶC</span>
+                <div class="flex-grow border-t border-pink-200"></div>
+            </div>
+
+            <form method="post" action="{% url 'join_room' %}" class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+                {% csrf_token %}
+                <div class="relative flex-1">
+                    <i class="fa-solid fa-hashtag absolute left-4 top-1/2 transform -translate-y-1/2 text-pink-400"></i>
+                    <input type="text" name="room_id" placeholder="Nhập Room ID..." class="w-full pl-10 pr-4 py-3 kawaii-input text-gray-700 font-medium" required>
+                </div>
+                <button type="submit" class="px-8 py-3 rounded-full font-bold bg-white text-pink-500 border-2 border-pink-400 hover:bg-pink-50 transition-all shadow-sm hover:shadow-md whitespace-nowrap">
+                    Tham Gia
+                </button>
+            </form>
+        </div>
+
+        <form method="post" action="{% url 'logout' %}" class="mt-12 text-center">
             {% csrf_token %}
-            <input type="text" name="room_id" placeholder="Nhập Room ID..." class="flex-1 px-4 py-2 kawaii-input text-sm" required>
-            <button type="submit" class="px-6 py-3 rounded-full font-bold bg-white text-pink-500 border-2 border-pink-500 hover:bg-pink-50 transition-all shadow-sm hover:shadow-md">
-                Tham Gia
-            </button>
+            <button type="submit" class="text-sm font-semibold text-gray-500 hover:text-red-500 transition-colors"><i class="fa-solid fa-right-from-bracket mr-1"></i> Đăng xuất</button>
         </form>
     </div>
 
-    <form method="post" action="{% url 'logout' %}" class="mt-8">
-        {% csrf_token %}
-        <button type="submit" class="text-sm text-gray-500 hover:text-red-500 underline">Đăng xuất</button>
-    </form>
+    <!-- Right Panel: Danh Bạ (Friends & Presence) -->
+    <div class="w-full md:w-1/2 p-6 glass-panel rounded-[2rem] flex flex-col h-[600px]">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-2xl font-bold text-gray-800"><i class="fa-solid fa-address-book text-pink-400 mr-2"></i> Danh bạ</h3>
+            <span class="bg-pink-100 text-pink-600 text-xs font-bold px-3 py-1 rounded-full">{{ users|length }} Người dùng</span>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+            {% for u in users %}
+            <div class="flex items-center justify-between p-3 bg-white/50 rounded-2xl hover:bg-white/80 transition-colors">
+                <div class="flex items-center gap-3">
+                    <div class="relative">
+                        <div class="w-12 h-12 rounded-full bg-pink-200 flex items-center justify-center text-pink-600 font-bold text-xl">
+                            {{ u.username|make_list|first|upper }}
+                        </div>
+                        <div id="status-dot-{{ u.id }}" class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white {% if u.is_online %}bg-green-500{% else %}bg-gray-400{% endif %} transition-colors duration-300"></div>
+                    </div>
+                    <div>
+                        <p class="font-bold text-gray-800">{{ u.username }}</p>
+                        <p id="status-text-{{ u.id }}" class="text-xs font-semibold {% if u.is_online %}text-green-600{% else %}text-gray-500{% endif %}">
+                            {% if u.is_online %}Trực tuyến{% else %}Ngoại tuyến{% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center text-gray-500 mt-10">
+                <i class="fa-solid fa-ghost text-4xl mb-3 text-pink-200"></i>
+                <p>Chưa có ai ở đây cả...</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
 </div>
+
+<!-- Toast Notification Container -->
+<div id="toast-container" class="fixed bottom-5 right-5 flex flex-col gap-3 z-50"></div>
+
+<style>
+    /* Custom Scrollbar for Friends List */
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,182,193,0.2); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,105,180,0.5); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,105,180,0.8); }
+    
+    .toast-anim { animation: slideInRight 0.3s ease-out forwards; }
+    @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+</style>
+
+<script>
+    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const notifSocket = new WebSocket(protocol + window.location.host + '/ws/notifications/');
+
+    notifSocket.onopen = () => {
+        console.log("Notification WebSocket connected.");
+    };
+
+    notifSocket.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.action === 'presence_update') {
+            const dot = document.getElementById('status-dot-' + data.user_id);
+            const text = document.getElementById('status-text-' + data.user_id);
+            if (dot && text) {
+                if (data.status === 'online') {
+                    dot.classList.remove('bg-gray-400');
+                    dot.classList.add('bg-green-500');
+                    text.classList.remove('text-gray-500');
+                    text.classList.add('text-green-600');
+                    text.innerText = 'Trực tuyến';
+                } else {
+                    dot.classList.remove('bg-green-500');
+                    dot.classList.add('bg-gray-400');
+                    text.classList.remove('text-green-600');
+                    text.classList.add('text-gray-500');
+                    text.innerText = 'Ngoại tuyến';
+                }
+            }
+        }
+        else if (data.action === 'room_invite') {
+            showInviteToast(data.sender_name, data.room_id);
+        }
+    };
+
+    notifSocket.onclose = () => {
+        console.error("Notification WebSocket closed unexpectedly.");
+    };
+
+    function showInviteToast(sender, roomId) {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = 'glass-panel p-4 rounded-xl shadow-lg flex items-center gap-4 toast-anim border-l-4 border-l-pink-500 min-w-[300px]';
+        
+        toast.innerHTML = `
+            <div class="text-pink-500 text-2xl"><i class="fa-solid fa-envelope-open-text"></i></div>
+            <div class="flex-1">
+                <p class="text-sm text-gray-800 font-bold">${sender} đã mời bạn!</p>
+                <p class="text-xs text-gray-600">Tham gia phòng họp ngay?</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="/chat/room/${roomId}/" class="px-3 py-1 bg-pink-500 text-white text-xs font-bold rounded-lg hover:bg-pink-600 transition-colors">Vào</a>
+                <button onclick="this.parentElement.parentElement.remove()" class="px-3 py-1 bg-gray-200 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-300 transition-colors">Bỏ qua</button>
+            </div>
+        `;
+        container.appendChild(toast);
+        
+        // Auto remove after 10s
+        setTimeout(() => {
+            if(toast.parentElement) toast.remove();
+        }, 10000);
+    }
+</script>
 {% endblock %}

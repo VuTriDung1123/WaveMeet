@@ -38,7 +38,9 @@ def logout_view(request):
     
 @login_required
 def home(request):
-    return render(request, 'chat/home.html')
+    from .models import User
+    users = User.objects.exclude(id=request.user.id)
+    return render(request, 'chat/home.html', {'users': users})
 
 @login_required
 def create_room(request):
